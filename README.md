@@ -118,6 +118,176 @@ gaming_behavior_prediction/
 - Model drift detection
 - Hallucination detection metrics
 
+# Multi-Agent System Execution Flow
+
+## Main Execution Flow
+
+```
+1. scripts/initialize_system.py
+   ├── config/config.py (load configurations)
+   ├── config/logging_config.py (setup logging)
+   └── shared_memory/feature_store.py (initialize stores)
+       └── shared_memory/vector_db.py
+           └── shared_memory/knowledge_graph.py
+
+2. scripts/download_data.py
+   └── data/raw/ (store raw data)
+
+3. orchestrator/main.py (ENTRY POINT)
+   ├── orchestrator/workflow_manager.py
+   │   └── orchestrator/task_router.py
+   │       └── orchestrator/ray_orchestrator.py
+   │           └── orchestrator/scheduler.py
+   │
+   ├── communication/message_broker.py
+   │   ├── communication/redis_client.py
+   │   └── communication/event_bus.py
+   │
+   └── agents/supervisor_agent.py (oversees all agents)
+       ├── monitoring/logger.py
+       └── monitoring/metrics_collector.py
+```
+
+## Agent Pipeline Flow
+
+```
+4. agents/data_validation_agent.py
+   ├── data/raw/ (read)
+   ├── evaluation/validation_suite.py
+   └── communication/message_protocol.py → NEXT AGENT
+
+5. agents/preprocessing_agent.py
+   ├── communication/message_protocol.py (receive)
+   ├── data/raw/ (read)
+   ├── data/processed/ (write)
+   └── communication/message_protocol.py → NEXT AGENT
+
+6. agents/feature_engineering_agent.py
+   ├── communication/message_protocol.py (receive)
+   ├── data/processed/ (read)
+   ├── data/features/ (write)
+   ├── shared_memory/feature_store.py (store features)
+   └── communication/message_protocol.py → NEXT AGENT
+
+7. agents/anomaly_detection_agent.py
+   ├── communication/message_protocol.py (receive)
+   ├── data/features/ (read)
+   ├── evaluation/drift_detector.py
+   └── communication/message_protocol.py → ALERT/CONTINUE
+```
+
+## Model Training Flow
+
+```
+8. agents/model_trainer_agent.py
+   ├── communication/message_protocol.py (receive)
+   ├── data/features/ (read)
+   ├── data/splits/ (create train/test)
+   ├── config/model_config.yaml (load params)
+   ├── shared_memory/model_registry.py (register)
+   ├── models/saved_models/ (save)
+   └── communication/message_protocol.py → NEXT AGENT
+
+9. agents/evaluation_agent.py
+   ├── communication/message_protocol.py (receive)
+   ├── models/saved_models/ (load)
+   ├── data/splits/ (load test data)
+   ├── evaluation/metrics.py
+   ├── evaluation/hallucination_detector.py
+   ├── evaluation/guardrails.py
+   └── communication/message_protocol.py → RESULTS
+```
+
+## Prediction Flow
+
+```
+10. agents/prediction_agent.py
+    ├── communication/message_protocol.py (receive)
+    ├── shared_memory/model_registry.py (get best model)
+    ├── shared_memory/feature_store.py (get features)
+    ├── models/saved_models/ (load model)
+    └── communication/message_protocol.py → PREDICTIONS
+
+11. agents/explainability_agent.py
+    ├── communication/message_protocol.py (receive predictions)
+    ├── shared_memory/knowledge_graph.py (store explanations)
+    └── communication/message_protocol.py → EXPLANATIONS
+```
+
+## Online Learning Flow (Parallel)
+
+```
+12. agents/online_learning_agent.py
+    ├── communication/event_bus.py (subscribe to predictions)
+    ├── shared_memory/cache_manager.py (buffer data)
+    ├── models/checkpoints/ (incremental updates)
+    └── shared_memory/model_registry.py (update model)
+
+13. agents/reinforcement_learning_agent.py
+    ├── communication/event_bus.py (subscribe to feedback)
+    ├── shared_memory/vector_db.py (store experiences)
+    └── models/saved_models/ (update policy)
+```
+
+## Monitoring & Feedback Flow
+
+```
+14. monitoring/prometheus_exporter.py
+    ├── monitoring/metrics_collector.py (collect)
+    └── monitoring/alert_manager.py
+        └── monitoring/human_review.py
+            └── communication/message_broker.py → TRIGGER RETRAINING
+
+15. dashboard/app.py
+    ├── dashboard/pages/overview.py
+    ├── dashboard/pages/metrics.py
+    ├── dashboard/pages/monitoring.py
+    ├── dashboard/pages/predictions.py
+    └── dashboard/components/charts.py
+        └── dashboard/components/alerts.py
+```
+
+## Testing Flow
+
+```
+tests/conftest.py (setup)
+├── tests/test_agents.py
+├── tests/test_communication.py
+├── tests/test_orchestrator.py
+├── tests/test_evaluation.py
+└── tests/test_integration.py (end-to-end)
+```
+
+## Deployment Flow
+
+```
+scripts/run_pipeline.py (production entry)
+└── scripts/deploy.py
+    └── orchestrator/main.py (starts system)
+```
+
+## Key Communication Patterns
+
+- **Synchronous**: Agent → Message Broker → Next Agent
+- **Asynchronous**: Agent → Event Bus → Multiple Subscribers
+- **Shared State**: Agent → Feature Store/Vector DB → Other Agents
+- **Monitoring**: All Agents → Metrics Collector → Dashboard
+
+## Data Flow
+
+```
+Raw Data → Validation → Preprocessing → Feature Engineering → 
+Feature Store → Model Training → Model Registry → 
+Prediction → Explainability → Dashboard/API
+```
+
+## Feedback Loop
+
+```
+Predictions → User Feedback → Human Review → 
+Supervisor Agent → Trigger Retraining → Model Trainer Agent
+```
+
 ## Author
 - Agriya Yadav
 
